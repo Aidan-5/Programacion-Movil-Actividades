@@ -1,0 +1,28 @@
+name: hello_world_ra
+description: "A new Flutter project with Augmented Reality"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # AR Plugin - Versión correcta disponible
+  ar_flutter_plugin_2: ^0.0.3
+  
+  # Para manejar permisos
+  permission_handler: ^11.0.1
+  
+  # Para vectores 3D
+  vector_math: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
