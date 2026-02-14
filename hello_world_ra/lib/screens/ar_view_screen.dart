@@ -25,7 +25,8 @@ class _ARViewScreenState extends State<ARViewScreen> {
   
   List<ARNode> nodes = [];
   bool surfaceDetected = false;
-  String instructions = 'Mueve el dispositivo para detectar superficies';
+  String instructions = 'Mueve el dispositivo lentamente para detectar superficies';
+  int objectCount = 0;
 
   @override
   void dispose() {
@@ -40,13 +41,17 @@ class _ARViewScreenState extends State<ARViewScreen> {
         title: const Text('Hello World AR'),
         backgroundColor: Colors.blue.withOpacity(0.8),
         elevation: 0,
+        centerTitle: true,
       ),
       body: Stack(
         children: [
+          // Vista AR
           ARView(
             onARViewCreated: onARViewCreated,
-            planeDetectionConfig: PlaneDetectionConfig.horizontal,
+            planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
           ),
+          
+          // Panel de instrucciones superior
           Positioned(
             top: 16,
             left: 16,
@@ -66,6 +71,7 @@ class _ARViewScreenState extends State<ARViewScreen> {
                       Icon(
                         surfaceDetected ? Icons.check_circle : Icons.search,
                         color: surfaceDetected ? Colors.green : Colors.orange,
+                        size: 20,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -73,26 +79,18 @@ class _ARViewScreenState extends State<ARViewScreen> {
                           instructions,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
+                            fontSize: 13,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  if (surfaceDetected) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      '👆 Toca la pantalla para colocar un cubo',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
           ),
+          
+          // Panel inferior con controles
           Positioned(
             bottom: 32,
             left: 0,
@@ -100,38 +98,58 @@ class _ARViewScreenState extends State<ARViewScreen> {
             child: Center(
               child: Column(
                 children: [
-                  if (nodes.isNotEmpty)
+                  // Contador de objetos
+                  if (objectCount > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                        horizontal: 20,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(25),
                       ),
-                      child: Text(
-                        'Objetos colocados: ${nodes.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.view_in_ar,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Objetos: $objectCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Botón limpiar
+                  if (objectCount > 0)
+                    ElevatedButton.icon(
+                      onPressed: onRemoveEverything,
+                      icon: const Icon(Icons.delete_sweep),
+                      label: const Text('Limpiar Todo'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
                         ),
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: nodes.isEmpty ? null : onRemoveEverything,
-                    icon: const Icon(Icons.delete_sweep),
-                    label: const Text('Limpiar Todo'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -151,69 +169,90 @@ class _ARViewScreenState extends State<ARViewScreen> {
     arObjectManager = objectManager;
     arAnchorManager = anchorManager;
 
+    // Inicializar sesión AR
     arSessionManager!.onInitialize(
       showFeaturePoints: false,
       showPlanes: true,
       showWorldOrigin: false,
       handleTaps: true,
-      handlePans: false,
-      handleRotation: false,
     );
 
     arObjectManager!.onInitialize();
 
-    // Listener para detección de planos
+    // Configurar el listener para toques en pantalla
     arSessionManager!.onPlaneOrPointTap = onPlaneOrPointTapped;
     
-    // Simular detección de superficie después de 2 segundos
-    Future.delayed(const Duration(seconds: 2), () {
+    // Simular detección de superficie
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
           surfaceDetected = true;
-          instructions = '¡Superficie detectada!';
+          instructions = '✅ Listo! Toca la pantalla para colocar un cubo 3D';
         });
       }
     });
   }
 
   Future<void> onPlaneOrPointTapped(List<ARHitTestResult> hitTestResults) async {
-    // Filtrar resultados para obtener solo planos horizontales
-    var singleHitTestResult = hitTestResults.firstWhere(
-      (hitTestResult) => hitTestResult.type == ARHitTestResultType.plane,
-      orElse: () => hitTestResults.first,
-    );
-
-    // Crear un nuevo nodo (cubo) en la posición detectada
-    var newNode = ARNode(
-      type: NodeType.localGLTF2,
-      uri: "https://github.com/KhronosGroup/glTF-Sample-Models/raw/master/2.0/Box/glTF/Box.gltf",
-      scale: vector.Vector3(0.2, 0.2, 0.2),
-      position: vector.Vector3(
-        singleHitTestResult.worldTransform.getColumn(3).x,
-        singleHitTestResult.worldTransform.getColumn(3).y,
-        singleHitTestResult.worldTransform.getColumn(3).z,
-      ),
-      rotation: vector.Vector4(1.0, 0.0, 0.0, 0.0),
-    );
-
-    bool didAddNode = await arObjectManager!.addNode(newNode) ?? false;
-    
-    if (didAddNode) {
-      nodes.add(newNode);
+    if (hitTestResults.isEmpty) {
       setState(() {
-        instructions = '¡Cubo colocado! Toca de nuevo para agregar más';
+        instructions = '❌ No se detectó superficie. Intenta de nuevo.';
       });
+      return;
+    }
+
+    // Obtener el primer resultado válido
+    var hitResult = hitTestResults.first;
+
+    try {
+      // Crear un nodo 3D (cubo)
+      var newNode = ARNode(
+        type: NodeType.localGLTF2,
+        uri: "https://github.com/KhronosGroup/glTF-Sample-Models/raw/master/2.0/Box/glTF/Box.gltf",
+        scale: vector.Vector3(0.15, 0.15, 0.15),
+        position: vector.Vector3(
+          hitResult.worldTransform.getColumn(3).x,
+          hitResult.worldTransform.getColumn(3).y,
+          hitResult.worldTransform.getColumn(3).z,
+        ),
+        rotation: vector.Vector4(1.0, 0.0, 0.0, 0.0),
+      );
+
+      // Agregar el nodo a la escena
+      bool? didAddNode = await arObjectManager!.addNode(newNode);
+      
+      if (didAddNode == true) {
+        nodes.add(newNode);
+        setState(() {
+          objectCount = nodes.length;
+          instructions = '🎉 ¡Cubo agregado! Total: $objectCount';
+        });
+      } else {
+        setState(() {
+          instructions = '⚠️ Error al agregar el cubo. Intenta de nuevo.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        instructions = '⚠️ Error: ${e.toString()}';
+      });
+      debugPrint('Error al agregar nodo: $e');
     }
   }
 
   Future<void> onRemoveEverything() async {
-    for (var node in nodes) {
-      await arObjectManager?.removeNode(node);
+    try {
+      for (var node in nodes) {
+        await arObjectManager?.removeNode(node);
+      }
+      
+      setState(() {
+        nodes.clear();
+        objectCount = 0;
+        instructions = '🧹 Escena limpiada. Toca para agregar más cubos.';
+      });
+    } catch (e) {
+      debugPrint('Error al limpiar: $e');
     }
-    
-    setState(() {
-      nodes.clear();
-      instructions = 'Toca la pantalla para colocar un cubo';
-    });
   }
 }
